@@ -1,13 +1,13 @@
 import os
 import random
 import time
-from datetime import datetime
-from instagrapi import Client
+from datetime import datetime, timedelta
 import json
+from instagrapi import Client
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv(dotenv_path="../config/.env")  # Load from config folder
+load_dotenv(dotenv_path="../config/.env")
 USERNAME = os.getenv('IG_USERNAME')
 PASSWORD = os.getenv('IG_PASSWORD')
 
@@ -15,6 +15,7 @@ PASSWORD = os.getenv('IG_PASSWORD')
 EXCEPTION_LIST_PATH = "../config/exception_list.txt"
 LOG_FILE_PATH = "../logs/followers_log.json"
 SESSION_FILE_PATH = "../config/session.json"
+CACHE_FILE_PATH = "../config/cache.json"
 
 # Initialize the Instagram client
 cl = Client()
@@ -54,9 +55,37 @@ def login():
         cl.dump_settings(SESSION_FILE_PATH)
         print("[INFO] Logged in and session saved.")
 
+def save_cache(data):
+    """Save cache data to a file in JSON format."""
+    with open(CACHE_FILE_PATH, 'w') as file:
+        json.dump(data, file, indent=4)
+
+def load_cache():
+    """Load cache data from a file."""
+    if os.path.exists(CACHE_FILE_PATH):
+        with open(CACHE_FILE_PATH, 'r') as file:
+            return json.load(file)
+    return {}
+
+def fetch_follow_data():
+    """Fetch following and followers data with rate limit handling."""
+    try:
+        following = cl.user_following(cl.user_id)
+        print(f"[SUCCESS] Retrieved {len(following)} following.")
+        time.sleep(random.uniform(1, 3))  # Short delay between requests
+        followers = cl.user_followers(cl.user_id)
+        print(f"[SUCCESS] Retrieved {len(followers)} followers.")
+        return following, followers
+    except Exception as e:
+        print(f"[ERROR] Exception occurred: {e}")
+        if 'Please wait a few minutes before you try again' in str(e):
+            print("[INFO] Rate limit encountered. Pausing operations.")
+            return None, None
+        else:
+            raise
+
 def unfollow_non_followers():
     """Main function to unfollow non-followers while avoiding detection."""
-    
     # Login and session management
     print("[INFO] Attempting to log in...")
     try:
@@ -69,18 +98,34 @@ def unfollow_non_followers():
     exception_list = load_exception_list()
     print("[INFO] Loaded exception list:", exception_list)
 
-    # Fetch current following and followers
-    print("[INFO] Fetching current following and followers...")
+    # Load cache
+    cache = load_cache()
+    cache_timestamp = cache.get('timestamp')
+    following = cache.get('following')
+    followers = cache.get('followers')
 
-    try:
-        following = cl.user_following(cl.user_id)
-        print(f"[SUCCESS] Retrieved {len(following)} following.")
+    if cache_timestamp:
+        cache_time = datetime.fromisoformat(cache_timestamp)
+        if datetime.now() - cache_time < timedelta(hours=1):
+            print("[INFO] Using cached data.")
+        else:
+            print("[INFO] Cached data is older than 1 hour. Fetching new data.")
+            following, followers = fetch_follow_data()
+    else:
+        print("[INFO] No cache found. Fetching data.")
+        following, followers = fetch_follow_data()
 
-        followers = cl.user_followers(cl.user_id)
-        print(f"[SUCCESS] Retrieved {len(followers)} followers.")
-    except Exception as e:
-        print(f"[ERROR] Failed to fetch followers/following: {e}")
+    if following is None or followers is None:
+        print("[INFO] Could not fetch data due to rate limits. Exiting.")
         return
+
+    # Save fetched data to cache
+    cache = {
+        'timestamp': datetime.now().isoformat(),
+        'following': {user.pk: user.dict() for user in following.values()},
+        'followers': {user.pk: user.dict() for user in followers.values()}
+    }
+    save_cache(cache)
 
     # Extract usernames
     following_usernames = get_usernames(following)
@@ -105,51 +150,41 @@ def unfollow_non_followers():
     non_followers_list = list(non_followers)
     random.shuffle(non_followers_list)
     batch_size = random.randint(3, 7)
-    
+
     print(f"[INFO] Starting unfollow process in batches of {batch_size}...")
 
     for i in range(0, len(non_followers_list), batch_size):
         batch = non_followers_list[i:i + batch_size]
-        
+
         for username in batch:
             try:
                 print(f"[INFO] Attempting to unfollow {username}...")
                 user_id = cl.user_id_from_username(username)
                 cl.user_unfollow(user_id)
                 print(f"[SUCCESS] Unfollowed {username}")
-
                 time.sleep(random.uniform(1, 3))  # Short delay between unfollows
             except Exception as e:
                 print(f"[ERROR] Error unfollowing {username}: {e}")
-                time.sleep(random.uniform(5, 10))  # Delay if error occurs
-        
-        time.sleep(random.uniform(60, 120))  # Longer delay between batches
+                if 'Please wait a few minutes before you try again' in str(e):
+                    print("[INFO] Rate limit encountered during unfollow. Pausing operations.")
+                    return  # Stop execution on rate limit
+                continue  # Skip to the next username if an error occurs
 
-    # Fetch updated following and followers
-    print("[INFO] Fetching updated following and followers...")
+        # Random delay between batches
+        sleep_time = random.randint(30, 120)
+        print(f"[INFO] Waiting {sleep_time} seconds before next batch...")
+        time.sleep(sleep_time)
 
-    try:
-        updated_following = cl.user_following(cl.user_id)
-        updated_followers = cl.user_followers(cl.user_id)
-        print(f"[SUCCESS] Updated counts - Following: {len(updated_following)}, Followers: {len(updated_followers)}")
-    except Exception as e:
-        print(f"[ERROR] Failed to fetch updated followers/following: {e}")
-        return
-
-    # Extract updated usernames
-    updated_following_usernames = get_usernames(updated_following)
-    updated_follower_usernames = get_usernames(updated_followers)
+    print("[INFO] Unfollow process completed.")
 
     # Log final state
-    log_data = {
+    final_log_data = {
         'timestamp': datetime.now().isoformat(),
         'action': 'after_unfollow',
-        'following_count': len(updated_following_usernames),
-        'follower_count': len(updated_follower_usernames)
+        'remaining_following': len(following_usernames - non_followers)
     }
-    save_log(log_data)
+    save_log(final_log_data)
 
-    print("[SUCCESS] Unfollow process completed!")
-
+# Run the script
 if __name__ == "__main__":
     unfollow_non_followers()
