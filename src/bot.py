@@ -14,23 +14,10 @@ PASSWORD = os.getenv('IG_PASSWORD')
 # Paths
 EXCEPTION_LIST_PATH = "../config/exception_list.txt"
 LOG_FILE_PATH = "../logs/followers_log.json"
+SESSION_FILE_PATH = "../config/session.json"
 
 # Initialize the Instagram client
 cl = Client()
-
-# Define the device settings
-device_settings = {
-    "app_version": "165.1.0.20.119",
-    "android_version": 27,
-    "android_release": "8.1.0",
-    "dpi": "480dpi",
-    "resolution": "1080x1776",
-    "manufacturer": "motorola",
-    "device": "Moto G (5S)",
-    "model": "montana",
-    "cpu": "qcom",
-    "version_code": "253447809",
-}
 
 def load_exception_list():
     """Load the exception list from a file."""
@@ -49,18 +36,31 @@ def get_usernames(user_dict):
     """Extract usernames from a user dictionary."""
     return {user.username.lower() for user in user_dict.values()}
 
+def login():
+    """Handle login and session management."""
+    if os.path.exists(SESSION_FILE_PATH):
+        try:
+            cl.load_settings(SESSION_FILE_PATH)
+            cl.login(USERNAME, PASSWORD)
+            print("[INFO] Session loaded and login successful.")
+        except Exception as e:
+            print(f"[WARNING] Failed to load session: {e}. Recreating session...")
+            cl.set_settings({})
+            cl.login(USERNAME, PASSWORD)
+            cl.dump_settings(SESSION_FILE_PATH)
+            print("[INFO] New session created and saved.")
+    else:
+        cl.login(USERNAME, PASSWORD)
+        cl.dump_settings(SESSION_FILE_PATH)
+        print("[INFO] Logged in and session saved.")
+
 def unfollow_non_followers():
     """Main function to unfollow non-followers while avoiding detection."""
     
-    # Set the device settings
-    cl.set_device(device_settings)
-    print("[INFO] Device settings configured.")
-
-    # Login to Instagram
+    # Login and session management
     print("[INFO] Attempting to log in...")
     try:
-        cl.login(USERNAME, PASSWORD)
-        print("[SUCCESS] Login Successful!")
+        login()
     except Exception as e:
         print(f"[ERROR] Login failed: {e}")
         return
