@@ -40,9 +40,11 @@ def unfollow_non_followers():
     
     # Login to Instagram
     cl.login(USERNAME, PASSWORD)
+    print("Login Successful!")
 
     # Load the exception list
     exception_list = load_exception_list()
+    print("Loaded exception list:", exception_list)
 
     # Fetch current following and followers
     following = cl.user_following(cl.user_id)
