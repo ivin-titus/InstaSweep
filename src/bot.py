@@ -28,7 +28,7 @@ def load_exception_list():
 def save_log(data):
     """Save log data to a file in JSON format."""
     with open(LOG_FILE_PATH, 'a') as file:
-        json.dump(data, file)
+        json.dump(data, file, indent=4)
         file.write('\n')
 
 def get_usernames(user_dict):
@@ -38,17 +38,31 @@ def get_usernames(user_dict):
 def unfollow_non_followers():
     """Main function to unfollow non-followers while avoiding detection."""
     
-    # Login to Instagram
-    cl.login(USERNAME, PASSWORD)
-    print("Login Successful!")
+    # Login using Mobile API
+    print("[INFO] Attempting to log in...")
+    try:
+        cl.login(USERNAME, PASSWORD, use_mobile=True)  # Use Mobile API
+        print("[SUCCESS] Login Successful!")
+    except Exception as e:
+        print(f"[ERROR] Login failed: {e}")
+        return
 
     # Load the exception list
     exception_list = load_exception_list()
-    print("Loaded exception list:", exception_list)
+    print("[INFO] Loaded exception list:", exception_list)
 
     # Fetch current following and followers
-    following = cl.user_following(cl.user_id)
-    followers = cl.user_followers(cl.user_id)
+    print("[INFO] Fetching current following and followers...")
+
+    try:
+        following = cl.user_following_v1(cl.user_id)
+        print(f"[SUCCESS] Retrieved {len(following)} following.")
+
+        followers = cl.user_followers_v1(cl.user_id)
+        print(f"[SUCCESS] Retrieved {len(followers)} followers.")
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch followers/following: {e}")
+        return
 
     # Extract usernames
     following_usernames = get_usernames(following)
@@ -56,6 +70,7 @@ def unfollow_non_followers():
 
     # Identify non-followers excluding exceptions
     non_followers = following_usernames - follower_usernames - exception_list
+    print(f"[INFO] Identified {len(non_followers)} non-followers.")
 
     # Log initial state
     log_data = {
@@ -63,8 +78,8 @@ def unfollow_non_followers():
         'action': 'before_unfollow',
         'following_count': len(following_usernames),
         'follower_count': len(follower_usernames),
-        'following_usernames': list(following_usernames),
-        'follower_usernames': list(follower_usernames)
+        'non_followers_count': len(non_followers),
+        'non_followers': list(non_followers)
     }
     save_log(log_data)
 
@@ -73,25 +88,35 @@ def unfollow_non_followers():
     random.shuffle(non_followers_list)
     batch_size = random.randint(3, 7)
     
+    print(f"[INFO] Starting unfollow process in batches of {batch_size}...")
+
     for i in range(0, len(non_followers_list), batch_size):
         batch = non_followers_list[i:i + batch_size]
         
         for username in batch:
             try:
+                print(f"[INFO] Attempting to unfollow {username}...")
                 user_id = cl.user_id_from_username(username)
                 cl.user_unfollow(user_id)
-                print(f"Unfollowed {username}")
-                
+                print(f"[SUCCESS] Unfollowed {username}")
+
                 time.sleep(random.uniform(1, 3))  # Short delay between unfollows
             except Exception as e:
-                print(f"Error unfollowing {username}: {e}")
+                print(f"[ERROR] Error unfollowing {username}: {e}")
                 time.sleep(random.uniform(5, 10))  # Delay if error occurs
         
         time.sleep(random.uniform(60, 120))  # Longer delay between batches
 
     # Fetch updated following and followers
-    updated_following = cl.user_following(cl.user_id)
-    updated_followers = cl.user_followers(cl.user_id)
+    print("[INFO] Fetching updated following and followers...")
+
+    try:
+        updated_following = cl.user_following_v1(cl.user_id)
+        updated_followers = cl.user_followers_v1(cl.user_id)
+        print(f"[SUCCESS] Updated counts - Following: {len(updated_following)}, Followers: {len(updated_followers)}")
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch updated followers/following: {e}")
+        return
 
     # Extract updated usernames
     updated_following_usernames = get_usernames(updated_following)
@@ -102,13 +127,11 @@ def unfollow_non_followers():
         'timestamp': datetime.now().isoformat(),
         'action': 'after_unfollow',
         'following_count': len(updated_following_usernames),
-        'follower_count': len(updated_follower_usernames),
-        'following_usernames': list(updated_following_usernames),
-        'follower_usernames': list(updated_follower_usernames)
+        'follower_count': len(updated_follower_usernames)
     }
     save_log(log_data)
 
-    print("Unfollow process completed!")
+    print("[SUCCESS] Unfollow process completed!")
 
 if __name__ == "__main__":
     unfollow_non_followers()
