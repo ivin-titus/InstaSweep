@@ -4,16 +4,16 @@ import time
 from datetime import datetime
 from instagrapi import Client
 import json
+from dotenv import load_dotenv
 
 # Load environment variables
+load_dotenv(dotenv_path="../config/.env")  # Load from config folder
 USERNAME = os.getenv('IG_USERNAME')
 PASSWORD = os.getenv('IG_PASSWORD')
 
-# Path to the exception list file
-EXCEPTION_LIST_PATH = 'exception_list.txt'
-
-# Path to the log file
-LOG_FILE_PATH = 'unfollow_log.json'
+# Paths
+EXCEPTION_LIST_PATH = "../config/exception_list.txt"
+LOG_FILE_PATH = "../logs/followers_log.json"
 
 # Initialize the Instagram client
 cl = Client()
@@ -26,15 +26,18 @@ def load_exception_list():
     return set()
 
 def save_log(data):
-    """Save log data to a file."""
+    """Save log data to a file in JSON format."""
     with open(LOG_FILE_PATH, 'a') as file:
-        file.write(json.dumps(data) + '\n')
+        json.dump(data, file)
+        file.write('\n')
 
 def get_usernames(user_dict):
     """Extract usernames from a user dictionary."""
     return {user.username.lower() for user in user_dict.values()}
 
 def unfollow_non_followers():
+    """Main function to unfollow non-followers while avoiding detection."""
+    
     # Login to Instagram
     cl.login(USERNAME, PASSWORD)
 
@@ -63,17 +66,25 @@ def unfollow_non_followers():
     }
     save_log(log_data)
 
-    # Unfollow in batches
+    # Unfollow in randomized batches
     non_followers_list = list(non_followers)
     random.shuffle(non_followers_list)
     batch_size = random.randint(3, 7)
+    
     for i in range(0, len(non_followers_list), batch_size):
         batch = non_followers_list[i:i + batch_size]
+        
         for username in batch:
-            user_id = cl.user_id_from_username(username)
-            cl.user_unfollow(user_id)
-            print(f"Unfollowed {username}")
-            time.sleep(random.uniform(1, 3))  # Short delay between unfollows
+            try:
+                user_id = cl.user_id_from_username(username)
+                cl.user_unfollow(user_id)
+                print(f"Unfollowed {username}")
+                
+                time.sleep(random.uniform(1, 3))  # Short delay between unfollows
+            except Exception as e:
+                print(f"Error unfollowing {username}: {e}")
+                time.sleep(random.uniform(5, 10))  # Delay if error occurs
+        
         time.sleep(random.uniform(60, 120))  # Longer delay between batches
 
     # Fetch updated following and followers
