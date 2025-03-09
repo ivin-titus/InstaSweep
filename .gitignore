@@ -1,0 +1,7 @@
+# Ignore actual sensitive files
+exception_list.txt
+.env
+
+# Allow example templates
+!exception_list.txt.example
+!.env.example
