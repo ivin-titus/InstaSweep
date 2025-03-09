@@ -18,6 +18,20 @@ LOG_FILE_PATH = "../logs/followers_log.json"
 # Initialize the Instagram client
 cl = Client()
 
+# Define the device settings
+device_settings = {
+    "app_version": "165.1.0.20.119",
+    "android_version": 27,
+    "android_release": "8.1.0",
+    "dpi": "480dpi",
+    "resolution": "1080x1776",
+    "manufacturer": "motorola",
+    "device": "Moto G (5S)",
+    "model": "montana",
+    "cpu": "qcom",
+    "version_code": "253447809",
+}
+
 def load_exception_list():
     """Load the exception list from a file."""
     if os.path.exists(EXCEPTION_LIST_PATH):
@@ -38,35 +52,18 @@ def get_usernames(user_dict):
 def unfollow_non_followers():
     """Main function to unfollow non-followers while avoiding detection."""
     
-    # Set mobile API before login
-    cl.set_device(cl.get_mobile_device())
-    
-    # Login using Mobile API
+    # Set the device settings
+    cl.set_device(device_settings)
+    print("[INFO] Device settings configured.")
+
+    # Login to Instagram
     print("[INFO] Attempting to log in...")
     try:
-        cl.login(USERNAME, PASSWORD)  # Fixed login
+        cl.login(USERNAME, PASSWORD)
         print("[SUCCESS] Login Successful!")
-
-        # Manually set device to avoid bot detection
-        cl.set_device(
-            {
-                "app_version": "309.0.0.0.47",
-                "android_version": 26,
-                "android_release": "8.0.0",
-                "dpi": "480dpi",
-                "resolution": "1080x1920",
-                "manufacturer": "Xiaomi",
-                "model": "Redmi Note 7",
-                "device": "lavender",
-                "cpu": "qcom",
-                "version_code": "309047767"
-            }
-        )
-
     except Exception as e:
         print(f"[ERROR] Login failed: {e}")
-        exit()
-
+        return
 
     # Load the exception list
     exception_list = load_exception_list()
