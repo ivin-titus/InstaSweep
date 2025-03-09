@@ -44,11 +44,29 @@ def unfollow_non_followers():
     # Login using Mobile API
     print("[INFO] Attempting to log in...")
     try:
-        cl.login(USERNAME, PASSWORD)  # No `use_mobile` argument
+        cl.login(USERNAME, PASSWORD)  # Fixed login
         print("[SUCCESS] Login Successful!")
+
+        # Manually set device to avoid bot detection
+        cl.set_device(
+            {
+                "app_version": "309.0.0.0.47",
+                "android_version": 26,
+                "android_release": "8.0.0",
+                "dpi": "480dpi",
+                "resolution": "1080x1920",
+                "manufacturer": "Xiaomi",
+                "model": "Redmi Note 7",
+                "device": "lavender",
+                "cpu": "qcom",
+                "version_code": "309047767"
+            }
+        )
+
     except Exception as e:
         print(f"[ERROR] Login failed: {e}")
-        return
+        exit()
+
 
     # Load the exception list
     exception_list = load_exception_list()
