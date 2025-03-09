@@ -38,10 +38,13 @@ def get_usernames(user_dict):
 def unfollow_non_followers():
     """Main function to unfollow non-followers while avoiding detection."""
     
+    # Set mobile API before login
+    cl.set_device(cl.get_mobile_device())
+    
     # Login using Mobile API
     print("[INFO] Attempting to log in...")
     try:
-        cl.login(USERNAME, PASSWORD, use_mobile=True)  # Use Mobile API
+        cl.login(USERNAME, PASSWORD)  # No `use_mobile` argument
         print("[SUCCESS] Login Successful!")
     except Exception as e:
         print(f"[ERROR] Login failed: {e}")
@@ -55,10 +58,10 @@ def unfollow_non_followers():
     print("[INFO] Fetching current following and followers...")
 
     try:
-        following = cl.user_following_v1(cl.user_id)
+        following = cl.user_following(cl.user_id)
         print(f"[SUCCESS] Retrieved {len(following)} following.")
 
-        followers = cl.user_followers_v1(cl.user_id)
+        followers = cl.user_followers(cl.user_id)
         print(f"[SUCCESS] Retrieved {len(followers)} followers.")
     except Exception as e:
         print(f"[ERROR] Failed to fetch followers/following: {e}")
@@ -111,8 +114,8 @@ def unfollow_non_followers():
     print("[INFO] Fetching updated following and followers...")
 
     try:
-        updated_following = cl.user_following_v1(cl.user_id)
-        updated_followers = cl.user_followers_v1(cl.user_id)
+        updated_following = cl.user_following(cl.user_id)
+        updated_followers = cl.user_followers(cl.user_id)
         print(f"[SUCCESS] Updated counts - Following: {len(updated_following)}, Followers: {len(updated_followers)}")
     except Exception as e:
         print(f"[ERROR] Failed to fetch updated followers/following: {e}")
